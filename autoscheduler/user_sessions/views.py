@@ -3,6 +3,18 @@ from rest_framework.decorators import api_view
 from django.contrib.auth.models import User
 from django.contrib.auth import logout
 from django.shortcuts import redirect
+from django.contrib.sessions.backends.db import SessionStore
+
+
+def get_data_session_object(request): #NEEDS TESTS
+    """ Upon login, data_session_key is stored in request.session. All data
+        that should persist across login/outs and computers should be stored
+        in the session object corresponding to data_session_key. This function
+        retrieves this object for use in the APIs.
+    """
+    data_session_key = request.session['data_session_key']
+    data_session_object = SessionStore(session_key=data_session_key)
+    return data_session_object
 
 @api_view(['GET'])
 def get_last_term(request):
