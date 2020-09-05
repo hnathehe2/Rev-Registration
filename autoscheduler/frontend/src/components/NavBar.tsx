@@ -2,6 +2,7 @@ import * as React from 'react';
 import {
   AppBar, Toolbar, Typography, Button, makeStyles,
 } from '@material-ui/core';
+import ExitToAppOutlinedIcon from '@material-ui/icons/ExitToAppOutlined';
 import { navigate } from '@reach/router';
 import appTheme from '../theme';
 
@@ -22,15 +23,6 @@ const useStyles = makeStyles((theme) => ({
 
 const NavBar: React.SFC = () => {
   const classes = useStyles(appTheme);
-
-  const [userLoggedIn, setUserLoggedIn] = React.useState(false);
-  React.useEffect(() => {
-    fetch('sessions/get_is_logged_in').then(
-      (res) => res.json(),
-    ).then(({ isLoggedIn }) => {
-      if (isLoggedIn) setUserLoggedIn(isLoggedIn);
-    });
-  }, []);
 
   const [usersName, setUsersName] = React.useState('');
   React.useEffect(() => {
@@ -64,11 +56,14 @@ const NavBar: React.SFC = () => {
     return (
       <Button
         color="inherit"
+        aria-label="Logout"
+        title="Logout"
         onClick={(): void => {
           window.open('/sessions/logout', '_self');
         }}
       >
-        Logout
+        <ExitToAppOutlinedIcon />
+
       </Button>
     );
   }
@@ -95,7 +90,7 @@ const NavBar: React.SFC = () => {
               </Typography>
             </Button>
           </div>
-          {!userLoggedIn
+          {usersName === ''
             ? (
               <div>
                 {LoginButton()}
@@ -103,8 +98,10 @@ const NavBar: React.SFC = () => {
             )
             : (
               <div>
-                {usersName/* make font prettier */}
-                {LogoutButton()}
+                <Typography variant="subtitle1">
+                  {usersName/* make font prettier */}
+                  {LogoutButton()}
+                </Typography>
               </div>
             )}
         </Toolbar>
