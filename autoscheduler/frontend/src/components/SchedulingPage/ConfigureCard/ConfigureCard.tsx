@@ -3,6 +3,7 @@ import {
   Button, Checkbox, ListItem, ListItemIcon, ListItemText, Snackbar, IconButton,
 } from '@material-ui/core';
 import CloseIcon from '@material-ui/icons/Close';
+import * as Cookies from 'js-cookie';
 import { useDispatch, useSelector } from 'react-redux';
 import GenericCard from '../../GenericCard/GenericCard';
 import SmallFastProgress from '../../SmallFastProgress';
@@ -15,7 +16,7 @@ import { parseAllMeetings } from '../../../redux/actions/courseCards';
 import { RootState } from '../../../redux/reducer';
 import { CourseCardArray, CustomizationLevel } from '../../../types/CourseCardOptions';
 import Availability from '../../../types/Availability';
-import { formatTime } from '../../../timeUtil';
+import { formatTime } from '../../../utils/timeUtil';
 
 /**
  * Allows the user to configure global options for schedule generation. Includes a checkbox to
@@ -25,15 +26,20 @@ const ConfigureCard: React.FC = () => {
   const [includeFull, setIncludeFull] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [showSnackbar, setShowSnackbar] = React.useState(false);
-  // Holds a reference to the DOM element to check if the component is still mounted
-  const ref = React.useRef();
+
   const courseCards = useSelector<RootState, CourseCardArray>((state) => state.courseCards);
   const term = useSelector<RootState, string>((state) => state.term);
   const avsList = useSelector<RootState, Availability[]>((state) => state.availability);
   const dispatch = useDispatch();
 
+  // Holds a reference to the DOM element to check if the component is still mounted
+  const isMounted = React.useRef(true);
+  React.useEffect((): VoidFunction => (): void => {
+    isMounted.current = false;
+  }, []);
+
   const checkIfEmpty = (schedules: Meeting[][]): Meeting[][] => {
-    if (ref.current && schedules.length === 0) setShowSnackbar(true);
+    if (isMounted.current && schedules.length === 0) setShowSnackbar(true);
     return schedules;
   };
 
@@ -81,8 +87,13 @@ const ConfigureCard: React.FC = () => {
       day: avl.dayOfWeek,
     }));
 
+    // make request to generate schedules and update redux, will also save availabilities
     fetch('scheduler/generate', {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': Cookies.get('csrftoken'),
+      },
       body: JSON.stringify({
         term,
         includeFull,
@@ -100,7 +111,7 @@ const ConfigureCard: React.FC = () => {
       .then((schedules: Meeting[][]) => {
         dispatch(replaceSchedules(schedules));
         dispatch(selectSchedule(0));
-        if (ref.current) setLoading(false);
+        if (isMounted.current) setLoading(false);
       });
   }, [avsList, courseCards, dispatch, includeFull, term]);
 
@@ -110,7 +121,7 @@ const ConfigureCard: React.FC = () => {
         <div id={styles.cardHeader}>Configure</div>
       }
     >
-      <div className={styles.buttonContainer} ref={ref}>
+      <div className={styles.buttonContainer}>
         <div id={styles.instructions}>
           Click and drag in the calendar on the right to block off times when you
           are unavailable, then press Generate Schedules below.

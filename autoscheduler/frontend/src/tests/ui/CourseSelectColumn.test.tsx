@@ -1,16 +1,24 @@
+import fetchMock, { enableFetchMocks, MockResponseInit } from 'jest-fetch-mock';
+
+enableFetchMocks();
+
+/* eslint-disable import/first */ // enableFetchMocks must be called before others are imported
 /* eslint-disable @typescript-eslint/ban-ts-ignore */
 import * as React from 'react';
 import { render, fireEvent, act } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { createStore, applyMiddleware } from 'redux';
 import thunk from 'redux-thunk';
-import fetchMock from 'jest-fetch-mock';
 import autoSchedulerReducer from '../../redux/reducer';
 import CourseSelectColumn from '../../components/SchedulingPage/CourseSelectColumn/CourseSelectColumn';
 import testFetch from '../testData';
 import setTerm from '../../redux/actions/term';
 
 beforeAll(() => fetchMock.enableMocks());
+
+beforeEach(() => {
+  fetchMock.mockReset();
+});
 
 function ignoreInvisible(content: string, element: HTMLElement, query: string | RegExp): boolean {
   if (element.style.visibility === 'hidden') return false;
@@ -19,10 +27,13 @@ function ignoreInvisible(content: string, element: HTMLElement, query: string | 
 
 describe('CourseSelectColumn', () => {
   describe('Adds a course card', () => {
-    test('wehn the Add Course button is clicked', () => {
+    test('when the Add Course button is clicked', async () => {
       // arrange
       const store = createStore(autoSchedulerReducer, applyMiddleware(thunk));
       store.dispatch(setTerm('201931'));
+
+      // sessions/get_saved_courses
+      fetchMock.mockResponseOnce(JSON.stringify({}));
 
       const { getByText, getAllByText } = render(
         <Provider store={store}>
@@ -44,10 +55,13 @@ describe('CourseSelectColumn', () => {
   });
 
   describe('Removes a course card', () => {
-    test('when Remove is clicked on a course card', () => {
+    test('when Remove is clicked on a course card', async () => {
       // arrange
       const store = createStore(autoSchedulerReducer, applyMiddleware(thunk));
       store.dispatch(setTerm('201931'));
+
+      // sessions/get_saved_courses
+      fetchMock.mockResponseOnce(JSON.stringify({}));
 
       const { getByText, queryAllByText } = render(
         <Provider store={store}>
@@ -82,23 +96,28 @@ describe('CourseSelectColumn', () => {
         },
       });
 
-      fetchMock.mockResponseOnce(JSON.stringify({
-        results: ['CSCE 121', 'CSCE 221', 'CSCE 312'],
-      }));
-      fetchMock.mockImplementationOnce(testFetch);
 
       const store = createStore(autoSchedulerReducer, applyMiddleware(thunk));
       store.dispatch(setTerm('201931'));
+
+      // sessions/get_saved_courses
+      fetchMock.mockResponseOnce(JSON.stringify({}));
+
       const {
-        getAllByText, getByText, getAllByLabelText, findByText,
+        getAllByText, getAllByLabelText, findByText,
       } = render(
         <Provider store={store}>
           <CourseSelectColumn />
         </Provider>,
       );
 
+      fetchMock.mockResponseOnce(JSON.stringify({
+        results: ['CSCE 121', 'CSCE 221', 'CSCE 312'],
+      }));
+      fetchMock.mockImplementationOnce(testFetch);
+
       // act
-      fireEvent.click(getByText('Add Course'));
+      fireEvent.click(await findByText('Add Course'));
 
       // fill in course
       const courseEntry = getAllByLabelText('Course')[1] as HTMLInputElement;
@@ -115,6 +134,98 @@ describe('CourseSelectColumn', () => {
 
       // assert
       expect(checked).toEqual(1);
+    });
+  });
+
+  describe('fetches saved courses', () => {
+    test('when the term is changed', async () => {
+      // arrange
+      const store = createStore(autoSchedulerReducer, applyMiddleware(thunk));
+
+      // sessions/get_saved_courses
+      fetchMock.mockResponse(JSON.stringify({}));
+
+      render(
+        <Provider store={store}>
+          <CourseSelectColumn />
+        </Provider>,
+      );
+
+      // act/assert
+      // should be called once when term is initially set, and again when changed
+      store.dispatch(setTerm('201931'));
+      await new Promise(setImmediate);
+      expect(fetchMock).toHaveBeenCalledWith('sessions/get_saved_courses?term=201931');
+
+      store.dispatch(setTerm('202031'));
+      await new Promise(setImmediate);
+      expect(fetchMock).toHaveBeenCalledWith('sessions/get_saved_courses?term=202031');
+    });
+  });
+
+  describe('saves course cards', () => {
+    // Function that mocks responses from save_courses and get_saved_courses
+    const mockCourseAPI = (request: Request): Promise<MockResponseInit | string> => (
+      new Promise((resolve) => {
+        if (request.url === 'sessions/save_courses') {
+          resolve({
+            body: '',
+            init: { status: 204 },
+          });
+        }
+        resolve(JSON.stringify({}));
+      })
+    );
+
+    const expectCardsToBeSavedForTerm = (term: string): void => {
+      const saved = fetchMock.mock.calls.some((call) => (
+        call[0] === 'sessions/save_courses' && JSON.parse(call[1].body.toString()).term === term
+      ));
+
+      if (!saved) throw new Error(`save_courses was not called for term ${term}`);
+    };
+
+    test('when the term is changed', async () => {
+      // arrange
+      fetchMock.mockResponse(mockCourseAPI);
+
+      const store = createStore(autoSchedulerReducer, applyMiddleware(thunk));
+
+      render(
+        <Provider store={store}>
+          <CourseSelectColumn />
+        </Provider>,
+      );
+
+      // act
+      store.dispatch(setTerm('202031'));
+      store.dispatch(setTerm('201931'));
+      await new Promise(setImmediate);
+
+      // assert
+      // console.log(fetchMock.mock.calls)
+      expectCardsToBeSavedForTerm('202031');
+    });
+
+    test('when the website is closed', () => {
+      // arrange
+      fetchMock.mockResponse(mockCourseAPI);
+
+      const store = createStore(autoSchedulerReducer, applyMiddleware(thunk));
+      store.dispatch(setTerm('202031'));
+
+      render(
+        <Provider store={store}>
+          <CourseSelectColumn />
+        </Provider>,
+      );
+
+      // act
+      // dispatch beforeunload event, since jest doesn't handle window.close() properly
+      window.dispatchEvent(new Event('beforeunload'));
+
+      // assert
+      expectCardsToBeSavedForTerm('202031');
     });
   });
 });
