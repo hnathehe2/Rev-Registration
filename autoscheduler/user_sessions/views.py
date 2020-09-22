@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import JSONParser
 from django.contrib.auth.models import User
-from django.contrib.auth import logout
+from django.contrib import auth
 from django.shortcuts import redirect
 from user_sessions.utils.retrieve_data_session import retrieve_data_session
 
@@ -78,7 +78,7 @@ def get_saved_courses(request):
                 response = courses
         return Response(response)
 
-def logout_view(request):
+def logout(request):
     """ Logs out the user and redirects to index"""
-    logout(request)
+    auth.logout(request)
     return redirect('/')
