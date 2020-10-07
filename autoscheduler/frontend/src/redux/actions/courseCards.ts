@@ -69,6 +69,7 @@ function parseSection(sectionData: any): Section {
     maxEnrollment: Number(sectionData.max_enrollment),
     honors: sectionData.honors,
     web: sectionData.web,
+    asynchronous: sectionData.asynchronous,
     instructor: new Instructor({ name: sectionData.instructor_name }),
     grades: sectionData.grades == null ? null : new Grades(sectionData.grades),
   });
@@ -255,6 +256,7 @@ function deserializeCourseCard(courseCard: SerializedCourseCardOptions): CourseC
     customizationLevel: courseCard.customizationLevel,
     honors: courseCard.honors,
     web: courseCard.web,
+    asynchronous: courseCard.asynchronous,
     sections: [],
     loading: true,
   };
